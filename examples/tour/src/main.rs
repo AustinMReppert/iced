@@ -1,10 +1,11 @@
-use iced::alignment;
+use iced::advanced::mouse::Click;
 use iced::theme;
 use iced::widget::{
     checkbox, column, container, horizontal_space, image, radio, row,
-    scrollable, slider, text, text_input, toggler, vertical_space,
+    scrollable, slider, text, text_input, toggler, vertical_space, MouseArea,
 };
 use iced::widget::{Button, Column, Container, Slider};
+use iced::{alignment, Background, Point, Theme, Vector};
 use iced::{Color, Element, Font, Length, Renderer, Sandbox, Settings};
 
 pub fn main() -> iced::Result {
@@ -127,6 +128,7 @@ impl Steps {
                     is_showing_icon: false,
                 },
                 Step::Debugger,
+                Step::MouseArea,
                 Step::End,
             ],
             current: 0,
@@ -196,6 +198,7 @@ enum Step {
         is_showing_icon: bool,
     },
     Debugger,
+    MouseArea,
     End,
 }
 
@@ -213,6 +216,17 @@ pub enum StepMessage {
     ToggleTextInputIcon(bool),
     DebugToggled(bool),
     TogglerChanged(bool),
+    MouseAreaEntered,
+    MouseAreaExited,
+    MouseAreaMoved(Point),
+    MouseAreaDragged(Vector),
+    MouseAreaPressed,
+    MouseAreaReleased,
+    MouseAreaMiddlePressed,
+    MouseAreaMiddleReleased,
+    MouseAreaRightPressed,
+    MouseAreaRightReleased,
+    MouseAreaClicked(Click),
 }
 
 impl<'a> Step {
@@ -281,6 +295,17 @@ impl<'a> Step {
                     *is_showing_icon = toggle
                 }
             }
+            StepMessage::MouseAreaEntered => {}
+            StepMessage::MouseAreaExited => {}
+            StepMessage::MouseAreaMoved(_point) => {}
+            StepMessage::MouseAreaDragged(_delta) => {}
+            StepMessage::MouseAreaPressed => {}
+            StepMessage::MouseAreaReleased => {}
+            StepMessage::MouseAreaMiddlePressed => {}
+            StepMessage::MouseAreaMiddleReleased => {}
+            StepMessage::MouseAreaRightPressed => {}
+            StepMessage::MouseAreaRightReleased => {}
+            StepMessage::MouseAreaClicked(_click) => {}
         };
     }
 
@@ -296,6 +321,7 @@ impl<'a> Step {
             Step::Scrollable => "Scrollable",
             Step::TextInput { .. } => "Text input",
             Step::Debugger => "Debugger",
+            Step::MouseArea => "Mouse Area",
             Step::End => "End",
         }
     }
@@ -312,6 +338,7 @@ impl<'a> Step {
             Step::Scrollable => true,
             Step::TextInput { value, .. } => !value.is_empty(),
             Step::Debugger => true,
+            Step::MouseArea => true,
             Step::End => false,
         }
     }
@@ -334,6 +361,7 @@ impl<'a> Step {
                 is_showing_icon,
             } => Self::text_input(value, *is_secure, *is_showing_icon),
             Step::Debugger => Self::debugger(debug),
+            Step::MouseArea => Self::mouse_area(),
             Step::End => Self::end(),
         }
         .into()
@@ -630,6 +658,39 @@ impl<'a> Step {
                     .into()
             })
             .push("Feel free to go back and take a look.")
+    }
+
+    fn mouse_area() -> Column<'a, StepMessage> {
+        Self::container("Mouse Area")
+          .push(
+              "A mouse area is a widget that can detect mouse \
+                               events. Make sure you have debug on by pressing F12. See what events you can capture by interacting with the red square!",
+          )
+          .push(
+              MouseArea::new(
+                  Container::new("").style(|_theme: &Theme| {
+                      container::Appearance {
+                          text_color: None,
+                          background: Some(Background::Color(Color::new(1.0, 0.0, 0.0, 1.0))),
+                          border_radius: Default::default(),
+                          border_width: 0.0,
+                          border_color: Default::default(),
+                      }})
+                    .width(100.0)
+                    .height(100.0)
+              )
+                .on_press(StepMessage::MouseAreaPressed)
+                .on_release(StepMessage::MouseAreaReleased)
+                .on_right_press(StepMessage::MouseAreaRightPressed)
+                .on_right_release(StepMessage::MouseAreaRightReleased)
+                .on_middle_press(StepMessage::MouseAreaMiddlePressed)
+                .on_middle_release(StepMessage::MouseAreaMiddleReleased)
+                .on_enter(StepMessage::MouseAreaEntered)
+                .on_exit(StepMessage::MouseAreaExited)
+                .on_move(StepMessage::MouseAreaMoved)
+                .on_drag(StepMessage::MouseAreaDragged)
+                .on_click(StepMessage::MouseAreaClicked)
+          )
     }
 
     fn end() -> Column<'a, StepMessage> {
