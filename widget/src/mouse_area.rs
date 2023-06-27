@@ -1,7 +1,8 @@
 //! A container for capturing mouse events.
 
+use std::ops::Sub;
 use crate::core::event::{self, Event};
-use crate::core::layout;
+use crate::core::{layout, Point, Vector};
 use crate::core::mouse;
 use crate::core::overlay;
 use crate::core::renderer;
@@ -10,6 +11,8 @@ use crate::core::widget::{tree, Operation, Tree};
 use crate::core::{
     Clipboard, Element, Layout, Length, Rectangle, Shell, Widget,
 };
+use crate::core::mouse::{Click, Cursor};
+use crate::core::mouse::Cursor::Available;
 
 /// Emit messages on mouse events.
 #[allow(missing_debug_implementations)]
@@ -21,6 +24,11 @@ pub struct MouseArea<'a, Message, Renderer> {
     on_right_release: Option<Message>,
     on_middle_press: Option<Message>,
     on_middle_release: Option<Message>,
+    on_enter: Option<Message>,
+    on_exit: Option<Message>,
+    on_move: Option<Box<dyn Fn(Point) -> Message + 'a>>,
+    on_drag: Option<Box<dyn Fn(Vector) -> Message + 'a>>,
+    on_click: Option<Box<dyn Fn(Click) -> Message + 'a>>,
 }
 
 impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
@@ -65,12 +73,61 @@ impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
         self.on_middle_release = Some(message);
         self
     }
+
+    /// The message to emit on mouse enter.
+    #[must_use]
+    pub fn on_enter(mut self, message: Message) -> Self {
+        self.on_enter = Some(message);
+        self
+    }
+
+    /// The message to emit on mouse exit.
+    #[must_use]
+    pub fn on_exit(mut self, message: Message) -> Self {
+        self.on_exit = Some(message);
+        self
+    }
+
+    /// The message to emit on mouse move.
+    #[must_use]
+    pub fn on_move<F>(mut self, callback: F) -> Self
+        where
+          F: 'a + Fn(Point) -> Message,
+    {
+        self.on_move = Some(Box::new(callback));
+        self
+    }
+
+    /// The message to emit on mouse drag.
+    /// The message to emit on mouse move.
+    #[must_use]
+    pub fn on_drag<F>(mut self, callback: F) -> Self
+        where
+          F: 'a + Fn(Vector) -> Message,
+    {
+        self.on_drag = Some(Box::new(callback));
+        self
+    }
+
+    /// The message to emit on mouse click.
+    #[must_use]
+    pub fn on_click<F>(mut self, callback: F) -> Self
+        where
+          F: 'a + Fn(Click) -> Message,
+    {
+        self.on_click = Some(Box::new(callback));
+        self
+    }
 }
 
 /// Local state of the [`MouseArea`].
 #[derive(Default)]
 struct State {
     // TODO: Support on_mouse_enter and on_mouse_exit
+    last_cursor: Cursor,
+    was_over: Option<bool>,
+    dragging: bool,
+    last_click: Option<Click>,
 }
 
 impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
@@ -84,6 +141,11 @@ impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
             on_right_release: None,
             on_middle_press: None,
             on_middle_release: None,
+            on_enter: None,
+            on_exit: None,
+            on_move: None,
+            on_drag: None,
+            on_click: None,
         }
     }
 }
@@ -94,22 +156,6 @@ where
     Renderer: renderer::Renderer,
     Message: Clone,
 {
-    fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
-    }
-
-    fn state(&self) -> tree::State {
-        tree::State::new(State::default())
-    }
-
-    fn children(&self) -> Vec<Tree> {
-        vec![Tree::new(&self.content)]
-    }
-
-    fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(std::slice::from_ref(&self.content));
-    }
-
     fn width(&self) -> Length {
         self.content.as_widget().width()
     }
@@ -124,6 +170,43 @@ where
         limits: &layout::Limits,
     ) -> layout::Node {
         self.content.as_widget().layout(renderer, limits)
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        theme: &Renderer::Theme,
+        renderer_style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        viewport: &Rectangle,
+    ) {
+        self.content.as_widget().draw(
+            &tree.children[0],
+            renderer,
+            theme,
+            renderer_style,
+            layout,
+            cursor,
+            viewport,
+        );
+    }
+
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(State::default())
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content));
     }
 
     fn operate(
@@ -146,7 +229,7 @@ where
         tree: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor: mouse::Cursor,
+        cursor: Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -163,14 +246,14 @@ where
             return event::Status::Captured;
         }
 
-        update(self, &event, layout, cursor, shell)
+        update(tree.state.downcast_mut::<State>(), self, &event, layout, cursor, shell)
     }
 
     fn mouse_interaction(
         &self,
         tree: &Tree,
         layout: Layout<'_>,
-        cursor: mouse::Cursor,
+        cursor: Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
@@ -181,27 +264,6 @@ where
             viewport,
             renderer,
         )
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut Renderer,
-        theme: &Renderer::Theme,
-        renderer_style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        viewport: &Rectangle,
-    ) {
-        self.content.as_widget().draw(
-            &tree.children[0],
-            renderer,
-            theme,
-            renderer_style,
-            layout,
-            cursor,
-            viewport,
-        );
     }
 
     fn overlay<'b>(
@@ -219,10 +281,10 @@ where
 }
 
 impl<'a, Message, Renderer> From<MouseArea<'a, Message, Renderer>>
-    for Element<'a, Message, Renderer>
-where
-    Message: 'a + Clone,
-    Renderer: 'a + renderer::Renderer,
+for Element<'a, Message, Renderer>
+    where
+      Message: 'a + Clone,
+      Renderer: 'a + renderer::Renderer,
 {
     fn from(
         area: MouseArea<'a, Message, Renderer>,
@@ -234,78 +296,126 @@ where
 /// Processes the given [`Event`] and updates the [`State`] of an [`MouseArea`]
 /// accordingly.
 fn update<Message: Clone, Renderer>(
+    state: &mut State,
     widget: &mut MouseArea<'_, Message, Renderer>,
     event: &Event,
     layout: Layout<'_>,
-    cursor: mouse::Cursor,
+    cursor: Cursor,
     shell: &mut Shell<'_, Message>,
 ) -> event::Status {
-    if !cursor.is_over(layout.bounds()) {
-        return event::Status::Ignored;
-    }
+    let mut status: Option<event::Status> = None;
 
-    if let Some(message) = widget.on_press.as_ref() {
-        if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
-        | Event::Touch(touch::Event::FingerPressed { .. }) = event
-        {
-            shell.publish(message.clone());
+    let is_cursor_over = cursor.is_over(layout.bounds());
 
-            return event::Status::Captured;
+    let mut cursor = cursor;
+    if let Event::Mouse(_) = event {
+        if !is_cursor_over {
+            state.dragging = false;
+            cursor = Cursor::Unavailable;
         }
     }
 
-    if let Some(message) = widget.on_release.as_ref() {
-        if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-        | Event::Touch(touch::Event::FingerLifted { .. }) = event
-        {
-            shell.publish(message.clone());
+    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) | Event::Touch(touch::Event::FingerPressed { .. }) = event {
+        if is_cursor_over {
+            if let Available(position) = state.last_cursor {
+                state.last_click = Some(Click::new(position, state.last_click));
 
-            return event::Status::Captured;
+                if let Some(message) = widget.on_click.as_ref() {
+                    shell.publish((message)(state.last_click.unwrap()));
+                    status = status.or(Some(event::Status::Captured));
+                }
+            }
+            state.dragging = true;
+
+            if let Some(message) = widget.on_press.as_ref() {
+                shell.publish(message.clone());
+                status = status.or(Some(event::Status::Captured));
+            }
         }
     }
 
-    if let Some(message) = widget.on_right_press.as_ref() {
-        if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) =
-            event
-        {
-            shell.publish(message.clone());
+    if let Event::Mouse(mouse::Event::CursorMoved{position, .. }) = event {
+        if is_cursor_over {
+            if let Some(false) = state.was_over  {
+                if let Some(message) = widget.on_enter.as_ref() {
+                    shell.publish(message.clone());
+                    status = status.or(Some(event::Status::Captured));
+                }
+            }
 
-            return event::Status::Captured;
+            if let Some(message) = widget.on_move.as_ref() {
+                shell.publish((message)(position.clone()));
+                status = status.or(Some(event::Status::Captured));
+            }
+
+            if state.dragging {
+                if let Some(message) = widget.on_drag.as_ref() {
+                    let delta = position.sub(state.last_cursor.position().unwrap_or(Point::new(0.0, 0.0)));
+                    shell.publish((message)(Vector::new(delta.x, delta.y)));
+                    status = status.or(Some(event::Status::Captured));
+                }
+            }
+
+            state.last_cursor = Cursor::Available(position.clone());
+            state.was_over = Some(true);
+        } else {
+            if let Some(true) = state.was_over {
+                if let Some(message) = widget.on_exit.as_ref() {
+                    shell.publish(message.clone());
+                    status = status.or(Some(event::Status::Captured));
+                }
+            }
+
+            state.last_cursor = Cursor::Unavailable;
+            state.was_over = Some(false);
         }
     }
 
-    if let Some(message) = widget.on_right_release.as_ref() {
-        if let Event::Mouse(mouse::Event::ButtonReleased(
-            mouse::Button::Right,
-        )) = event
-        {
-            shell.publish(message.clone());
-
-            return event::Status::Captured;
+    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) | Event::Touch(touch::Event::FingerLifted { .. }) = event {
+        if is_cursor_over {
+            state.dragging = false;
+            if let Some(message) = widget.on_release.as_ref() {
+                shell.publish(message.clone());
+                status = status.or(Some(event::Status::Captured));
+            }
         }
     }
 
-    if let Some(message) = widget.on_middle_press.as_ref() {
-        if let Event::Mouse(mouse::Event::ButtonPressed(
-            mouse::Button::Middle,
-        )) = event
-        {
-            shell.publish(message.clone());
-
-            return event::Status::Captured;
+    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) = event {
+        if is_cursor_over {
+            if let Some(message) = widget.on_right_press.as_ref() {
+                shell.publish(message.clone());
+                status = status.or(Some(event::Status::Captured));
+            }
         }
     }
 
-    if let Some(message) = widget.on_middle_release.as_ref() {
-        if let Event::Mouse(mouse::Event::ButtonReleased(
-            mouse::Button::Middle,
-        )) = event
-        {
-            shell.publish(message.clone());
-
-            return event::Status::Captured;
+    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right, )) = event {
+        if is_cursor_over {
+            if let Some(message) = widget.on_right_release.as_ref() {
+                shell.publish(message.clone());
+                status = status.or(Some(event::Status::Captured));
+            }
         }
     }
 
-    event::Status::Ignored
+    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle, )) = event {
+        if is_cursor_over {
+            if let Some(message) = widget.on_middle_press.as_ref() {
+                shell.publish(message.clone());
+                status = status.or(Some(event::Status::Captured));
+            }
+        }
+    }
+
+    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle, )) = event {
+        if is_cursor_over {
+            if let Some(message) = widget.on_middle_release.as_ref() {
+                shell.publish(message.clone());
+                status = status.or(Some(event::Status::Captured));
+            }
+        }
+    }
+
+    status.unwrap_or(event::Status::Ignored)
 }
