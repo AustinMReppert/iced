@@ -80,6 +80,10 @@ impl Pipeline {
         let renderer = &mut self.renderers[self.prepare_layer];
         let cache = self.cache.get_mut();
 
+        if self.prepare_layer == 0 {
+            cache.trim(Purpose::Drawing);
+        }
+
         let keys: Vec<_> = sections
             .iter()
             .map(|section| {
@@ -100,6 +104,7 @@ impl Pipeline {
                         },
                         shaping: section.shaping,
                     },
+                    Purpose::Drawing,
                 );
 
                 key
@@ -113,15 +118,13 @@ impl Pipeline {
                 .iter()
                 .zip(keys.iter())
                 .filter_map(|(section, key)| {
-                    let buffer = cache.get(key).expect("Get cached buffer");
+                    let entry = cache.get(key).expect("Get cached buffer");
 
                     let x = section.bounds.x * scale_factor;
                     let y = section.bounds.y * scale_factor;
 
-                    let (max_width, total_height) = measure(buffer);
-
-                    let max_width = max_width * scale_factor;
-                    let total_height = total_height * scale_factor;
+                    let max_width = entry.bounds.width * scale_factor;
+                    let total_height = entry.bounds.height * scale_factor;
 
                     let left = match section.horizontal_alignment {
                         alignment::Horizontal::Left => x,
@@ -145,7 +148,7 @@ impl Pipeline {
                     let clip_bounds = bounds.intersection(&section_bounds)?;
 
                     Some(glyphon::TextArea {
-                        buffer,
+                        buffer: &entry.buffer,
                         left,
                         top,
                         scale: scale_factor,
@@ -226,9 +229,12 @@ impl Pipeline {
 
     pub fn end_frame(&mut self) {
         self.atlas.trim();
-        self.cache.get_mut().trim();
 
         self.prepare_layer = 0;
+    }
+
+    pub fn trim_measurements(&mut self) {
+        self.cache.get_mut().trim(Purpose::Measuring);
     }
 
     pub fn measure(
@@ -239,12 +245,12 @@ impl Pipeline {
         font: Font,
         bounds: Size,
         shaping: Shaping,
-    ) -> (f32, f32) {
-        let mut measurement_cache = self.cache.borrow_mut();
+    ) -> Size {
+        let mut cache = self.cache.borrow_mut();
 
         let line_height = f32::from(line_height.to_absolute(Pixels(size)));
 
-        let (_, paragraph) = measurement_cache.allocate(
+        let (_, entry) = cache.allocate(
             &mut self.font_system.borrow_mut(),
             Key {
                 content,
@@ -254,9 +260,10 @@ impl Pipeline {
                 bounds,
                 shaping,
             },
+            Purpose::Measuring,
         );
 
-        measure(paragraph)
+        entry.bounds
     }
 
     pub fn hit_test(
@@ -270,11 +277,11 @@ impl Pipeline {
         point: Point,
         _nearest_only: bool,
     ) -> Option<Hit> {
-        let mut measurement_cache = self.cache.borrow_mut();
+        let mut cache = self.cache.borrow_mut();
 
         let line_height = f32::from(line_height.to_absolute(Pixels(size)));
 
-        let (_, paragraph) = measurement_cache.allocate(
+        let (_, entry) = cache.allocate(
             &mut self.font_system.borrow_mut(),
             Key {
                 content,
@@ -284,22 +291,23 @@ impl Pipeline {
                 bounds,
                 shaping,
             },
+            Purpose::Measuring,
         );
 
-        let cursor = paragraph.hit(point.x, point.y)?;
+        let cursor = entry.buffer.hit(point.x, point.y)?;
 
         Some(Hit::CharOffset(cursor.index))
     }
 }
 
-fn measure(buffer: &glyphon::Buffer) -> (f32, f32) {
+fn measure(buffer: &glyphon::Buffer) -> Size {
     let (width, total_lines) = buffer
         .layout_runs()
         .fold((0.0, 0usize), |(width, total_lines), run| {
             (run.line_w.max(width), total_lines + 1)
         });
 
-    (width, total_lines as f32 * buffer.metrics().line_height)
+    Size::new(width, total_lines as f32 * buffer.metrics().line_height)
 }
 
 fn to_family(family: font::Family) -> glyphon::Family<'static> {
@@ -349,9 +357,22 @@ fn to_shaping(shaping: Shaping) -> glyphon::Shaping {
 }
 
 struct Cache {
-    entries: FxHashMap<KeyHash, glyphon::Buffer>,
-    recently_used: FxHashSet<KeyHash>,
+    entries: FxHashMap<KeyHash, Entry>,
+    aliases: FxHashMap<KeyHash, KeyHash>,
+    recently_measured: FxHashSet<KeyHash>,
+    recently_drawn: FxHashSet<KeyHash>,
     hasher: HashBuilder,
+}
+
+struct Entry {
+    buffer: glyphon::Buffer,
+    bounds: Size,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    Measuring,
+    Drawing,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -364,12 +385,14 @@ impl Cache {
     fn new() -> Self {
         Self {
             entries: FxHashMap::default(),
-            recently_used: FxHashSet::default(),
+            aliases: FxHashMap::default(),
+            recently_measured: FxHashSet::default(),
+            recently_drawn: FxHashSet::default(),
             hasher: HashBuilder::default(),
         }
     }
 
-    fn get(&self, key: &KeyHash) -> Option<&glyphon::Buffer> {
+    fn get(&self, key: &KeyHash) -> Option<&Entry> {
         self.entries.get(key)
     }
 
@@ -377,20 +400,20 @@ impl Cache {
         &mut self,
         font_system: &mut glyphon::FontSystem,
         key: Key<'_>,
-    ) -> (KeyHash, &mut glyphon::Buffer) {
-        let hash = {
-            let mut hasher = self.hasher.build_hasher();
+        purpose: Purpose,
+    ) -> (KeyHash, &mut Entry) {
+        let hash = key.hash(self.hasher.build_hasher());
 
-            key.content.hash(&mut hasher);
-            key.size.to_bits().hash(&mut hasher);
-            key.line_height.to_bits().hash(&mut hasher);
-            key.font.hash(&mut hasher);
-            key.bounds.width.to_bits().hash(&mut hasher);
-            key.bounds.height.to_bits().hash(&mut hasher);
-            key.shaping.hash(&mut hasher);
-
-            hasher.finish()
+        let recently_used = match purpose {
+            Purpose::Measuring => &mut self.recently_measured,
+            Purpose::Drawing => &mut self.recently_drawn,
         };
+
+        if let Some(hash) = self.aliases.get(&hash) {
+            let _ = recently_used.insert(*hash);
+
+            return (*hash, self.entries.get_mut(hash).unwrap());
+        }
 
         if let hash_map::Entry::Vacant(entry) = self.entries.entry(hash) {
             let metrics = glyphon::Metrics::new(key.size, key.line_height);
@@ -411,19 +434,48 @@ impl Cache {
                 to_shaping(key.shaping),
             );
 
-            let _ = entry.insert(buffer);
+            let bounds = measure(&buffer);
+            let _ = entry.insert(Entry { buffer, bounds });
+
+            for bounds in [
+                bounds,
+                Size {
+                    width: key.bounds.width,
+                    ..bounds
+                },
+            ] {
+                if key.bounds != bounds {
+                    let _ = self.aliases.insert(
+                        Key { bounds, ..key }.hash(self.hasher.build_hasher()),
+                        hash,
+                    );
+                }
+            }
         }
 
-        let _ = self.recently_used.insert(hash);
+        let _ = recently_used.insert(hash);
 
         (hash, self.entries.get_mut(&hash).unwrap())
     }
 
-    fn trim(&mut self) {
-        self.entries
-            .retain(|key, _| self.recently_used.contains(key));
+    fn trim(&mut self, purpose: Purpose) {
+        self.entries.retain(|key, _| {
+            self.recently_measured.contains(key)
+                || self.recently_drawn.contains(key)
+        });
+        self.aliases.retain(|_, value| {
+            self.recently_measured.contains(value)
+                || self.recently_drawn.contains(value)
+        });
 
-        self.recently_used.clear();
+        match purpose {
+            Purpose::Measuring => {
+                self.recently_measured.clear();
+            }
+            Purpose::Drawing => {
+                self.recently_drawn.clear();
+            }
+        }
     }
 }
 
@@ -435,6 +487,20 @@ struct Key<'a> {
     font: Font,
     bounds: Size,
     shaping: Shaping,
+}
+
+impl Key<'_> {
+    fn hash<H: Hasher>(self, mut hasher: H) -> KeyHash {
+        self.content.hash(&mut hasher);
+        self.size.to_bits().hash(&mut hasher);
+        self.line_height.to_bits().hash(&mut hasher);
+        self.font.hash(&mut hasher);
+        self.bounds.width.to_bits().hash(&mut hasher);
+        self.bounds.height.to_bits().hash(&mut hasher);
+        self.shaping.hash(&mut hasher);
+
+        hasher.finish()
+    }
 }
 
 type KeyHash = u64;

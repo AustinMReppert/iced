@@ -2,7 +2,8 @@ use crate::core;
 use crate::core::{Color, Font, Point, Size};
 use crate::graphics::backend;
 use crate::graphics::color;
-use crate::graphics::{Primitive, Transformation, Viewport};
+use crate::graphics::{Transformation, Viewport};
+use crate::primitive::{self, Primitive};
 use crate::quad;
 use crate::text;
 use crate::triangle;
@@ -334,6 +335,14 @@ impl Backend {
     }
 }
 
+impl crate::graphics::Backend for Backend {
+    type Primitive = primitive::Custom;
+
+    fn trim_measurements(&mut self) {
+        self.text_pipeline.trim_measurements();
+    }
+}
+
 impl backend::Text for Backend {
     const ICON_FONT: Font = Font::with_name("Iced-Icons");
     const CHECKMARK_ICON: char = '\u{f00c}';
@@ -355,7 +364,7 @@ impl backend::Text for Backend {
         font: Font,
         bounds: Size,
         shaping: core::text::Shaping,
-    ) -> (f32, f32) {
+    ) -> Size {
         self.text_pipeline.measure(
             contents,
             size,

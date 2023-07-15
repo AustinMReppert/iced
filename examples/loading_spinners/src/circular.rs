@@ -272,6 +272,7 @@ where
         _renderer: &iced::Renderer<Theme>,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
     ) -> event::Status {
         const FRAME_RATE: u64 = 60;
 
@@ -358,7 +359,9 @@ where
         renderer.with_translation(
             Vector::new(bounds.x, bounds.y),
             |renderer| {
-                renderer.draw_primitive(geometry.0);
+                use iced::advanced::graphics::geometry::Renderer as _;
+
+                renderer.draw(vec![geometry]);
             },
         );
     }

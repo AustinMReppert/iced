@@ -6,6 +6,21 @@ use iced_core::{Font, Point, Size};
 
 use std::borrow::Cow;
 
+/// The graphics backend of a [`Renderer`].
+///
+/// [`Renderer`]: crate::Renderer
+pub trait Backend {
+    /// The custom kind of primitives this [`Backend`] supports.
+    type Primitive;
+
+    /// Trims the measurements cache.
+    ///
+    /// This method is currently necessary to properly trim the text cache in
+    /// `iced_wgpu` and `iced_glow` because of limitations in the text rendering
+    /// pipeline. It will be removed in the future.
+    fn trim_measurements(&mut self) {}
+}
+
 /// A graphics backend that supports text rendering.
 pub trait Text {
     /// The icon font of the backend.
@@ -38,7 +53,7 @@ pub trait Text {
         font: Font,
         bounds: Size,
         shaping: text::Shaping,
-    ) -> (f32, f32);
+    ) -> Size;
 
     /// Tests whether the provided point is within the boundaries of [`Text`]
     /// laid out with the given parameters, returning information about

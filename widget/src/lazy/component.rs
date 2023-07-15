@@ -270,6 +270,7 @@ where
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
     ) -> event::Status {
         let mut local_messages = Vec::new();
         let mut local_shell = Shell::new(&mut local_messages);
@@ -284,6 +285,7 @@ where
                 renderer,
                 clipboard,
                 &mut local_shell,
+                viewport,
             )
         });
 
@@ -623,6 +625,10 @@ where
             .unwrap_or(event::Status::Ignored);
 
         local_shell.revalidate_layout(|| shell.invalidate_layout());
+
+        if let Some(redraw_request) = local_shell.redraw_request() {
+            shell.request_redraw(redraw_request);
+        }
 
         if !local_messages.is_empty() {
             let mut inner =
