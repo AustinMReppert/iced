@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nested overlays. [#1719](https://github.com/iced-rs/iced/pull/1719)
 - Cursor availability. [#1904](https://github.com/iced-rs/iced/pull/1904)
 - Backend-specific primitives. [#1932](https://github.com/iced-rs/iced/pull/1932)
+- `ComboBox` widget. [#1954](https://github.com/iced-rs/iced/pull/1954)
 - `web-colors` feature flag to enable "sRGB linear" blending. [#1888](https://github.com/iced-rs/iced/pull/1888)
 - `PaneGrid` logic to split panes by drag & drop. [#1856](https://github.com/iced-rs/iced/pull/1856)
 - `PaneGrid` logic to drag & drop panes to the edges. [#1865](https://github.com/iced-rs/iced/pull/1865)
@@ -26,16 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Helpers to change viewport alignment of a `Scrollable`. [#1953](https://github.com/iced-rs/iced/pull/1953)
 - `scroll_to` widget operation. [#1796](https://github.com/iced-rs/iced/pull/1796)
 - `scroll_to` helper. [#1804](https://github.com/iced-rs/iced/pull/1804)
+- `visible_bounds` widget operation for `Container`. [#1971](https://github.com/iced-rs/iced/pull/1971)
 - Command to fetch window size. [#1927](https://github.com/iced-rs/iced/pull/1927)
 - Conversion support from `Fn` trait to custom theme. [#1861](https://github.com/iced-rs/iced/pull/1861)
 - Configurable border radii on relevant widgets. [#1869](https://github.com/iced-rs/iced/pull/1869)
 - `border_radius` styling to `Slider` rail. [#1892](https://github.com/iced-rs/iced/pull/1892)
+- `application_id` in `PlatformSpecific` settings for Linux. [#1963](https://github.com/iced-rs/iced/pull/1963)
 - Aliased entries in `text::Cache`. [#1934](https://github.com/iced-rs/iced/pull/1934)
 - Text cache modes. [#1938](https://github.com/iced-rs/iced/pull/1938)
 - `operate` method for `program::State`. [#1913](https://github.com/iced-rs/iced/pull/1913)
 - `Viewport` argument to `Widget::on_event`. [#1956](https://github.com/iced-rs/iced/pull/1956)
 - Nix instructions to `DEPENDENCIES.md`. [#1859](https://github.com/iced-rs/iced/pull/1859)
 - Loading spinners example. [#1902](https://github.com/iced-rs/iced/pull/1902)
+- Workflow that verifies `CHANGELOG` is always up-to-date. [#1970](https://github.com/iced-rs/iced/pull/1970)
 
 ### Changed
 - Updated `wgpu` to `0.16`. [#1807](https://github.com/iced-rs/iced/pull/1807)
@@ -70,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quad rendering including border only inside of the bounds. [#1843](https://github.com/iced-rs/iced/pull/1843)
 - Redraw requests not being forwarded for `Component` overlays. [#1949](https://github.com/iced-rs/iced/pull/1949)
 - Blinking input cursor when window loses focus. [#1955](https://github.com/iced-rs/iced/pull/1955)
+- `BorderRadius` not exposed in root crate. [#1972](https://github.com/iced-rs/iced/pull/1972)
+- Outdated `ROADMAP`. [#1958](https://github.com/iced-rs/iced/pull/1958)
 
 Many thanks to...
 
@@ -90,10 +96,12 @@ Many thanks to...
 - @marienz
 - @nicksenger
 - @nicoburns
+- @Redhawk18
 - @RGBCube
 - @tarkah
 - @thunderstorm010
 - @wash2
+- @wiiznokes
 
 ## [0.9.0] - 2023-04-13
 ### Added
