@@ -1,18 +1,18 @@
 //! A container for capturing mouse events.
 
-use std::ops::Sub;
 use crate::core::event::{self, Event};
-use crate::core::{layout, Point, Vector};
 use crate::core::mouse;
+use crate::core::mouse::Cursor::Available;
+use crate::core::mouse::{Click, Cursor};
 use crate::core::overlay;
 use crate::core::renderer;
 use crate::core::touch;
 use crate::core::widget::{tree, Operation, Tree};
+use crate::core::{layout, Point, Vector};
 use crate::core::{
     Clipboard, Element, Layout, Length, Rectangle, Shell, Widget,
 };
-use crate::core::mouse::{Click, Cursor};
-use crate::core::mouse::Cursor::Available;
+use std::ops::Sub;
 
 /// Emit messages on mouse events.
 #[allow(missing_debug_implementations)]
@@ -91,8 +91,8 @@ impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
     /// The message to emit on mouse move.
     #[must_use]
     pub fn on_move<F>(mut self, callback: F) -> Self
-        where
-          F: 'a + Fn(Point) -> Message,
+    where
+        F: 'a + Fn(Point) -> Message,
     {
         self.on_move = Some(Box::new(callback));
         self
@@ -102,8 +102,8 @@ impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
     /// The message to emit on mouse move.
     #[must_use]
     pub fn on_drag<F>(mut self, callback: F) -> Self
-        where
-          F: 'a + Fn(Vector) -> Message,
+    where
+        F: 'a + Fn(Vector) -> Message,
     {
         self.on_drag = Some(Box::new(callback));
         self
@@ -112,8 +112,8 @@ impl<'a, Message, Renderer> MouseArea<'a, Message, Renderer> {
     /// The message to emit on mouse click.
     #[must_use]
     pub fn on_click<F>(mut self, callback: F) -> Self
-        where
-          F: 'a + Fn(Click) -> Message,
+    where
+        F: 'a + Fn(Click) -> Message,
     {
         self.on_click = Some(Box::new(callback));
         self
@@ -248,7 +248,14 @@ where
             return event::Status::Captured;
         }
 
-        update(tree.state.downcast_mut::<State>(), self, &event, layout, cursor, shell)
+        update(
+            tree.state.downcast_mut::<State>(),
+            self,
+            &event,
+            layout,
+            cursor,
+            shell,
+        )
     }
 
     fn mouse_interaction(
@@ -283,10 +290,10 @@ where
 }
 
 impl<'a, Message, Renderer> From<MouseArea<'a, Message, Renderer>>
-for Element<'a, Message, Renderer>
-    where
-      Message: 'a + Clone,
-      Renderer: 'a + renderer::Renderer,
+    for Element<'a, Message, Renderer>
+where
+    Message: 'a + Clone,
+    Renderer: 'a + renderer::Renderer,
 {
     fn from(
         area: MouseArea<'a, Message, Renderer>,
@@ -317,7 +324,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) | Event::Touch(touch::Event::FingerPressed { .. }) = event {
+    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+    | Event::Touch(touch::Event::FingerPressed { .. }) = event
+    {
         if is_cursor_over {
             if let Available(position) = state.last_cursor {
                 state.last_click = Some(Click::new(position, state.last_click));
@@ -336,9 +345,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::CursorMoved{position, .. }) = event {
+    if let Event::Mouse(mouse::Event::CursorMoved { position, .. }) = event {
         if is_cursor_over {
-            if let Some(false) = state.was_over  {
+            if let Some(false) = state.was_over {
                 if let Some(message) = widget.on_enter.as_ref() {
                     shell.publish(message.clone());
                     status = status.or(Some(event::Status::Captured));
@@ -352,7 +361,12 @@ fn update<Message: Clone, Renderer>(
 
             if state.dragging {
                 if let Some(message) = widget.on_drag.as_ref() {
-                    let delta = position.sub(state.last_cursor.position().unwrap_or(Point::new(0.0, 0.0)));
+                    let delta = position.sub(
+                        state
+                            .last_cursor
+                            .position()
+                            .unwrap_or(Point::new(0.0, 0.0)),
+                    );
                     shell.publish((message)(Vector::new(delta.x, delta.y)));
                     status = status.or(Some(event::Status::Captured));
                 }
@@ -373,7 +387,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) | Event::Touch(touch::Event::FingerLifted { .. }) = event {
+    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+    | Event::Touch(touch::Event::FingerLifted { .. }) = event
+    {
         if is_cursor_over {
             state.dragging = false;
             if let Some(message) = widget.on_release.as_ref() {
@@ -383,7 +399,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) = event {
+    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) =
+        event
+    {
         if is_cursor_over {
             if let Some(message) = widget.on_right_press.as_ref() {
                 shell.publish(message.clone());
@@ -392,7 +410,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right, )) = event {
+    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) =
+        event
+    {
         if is_cursor_over {
             if let Some(message) = widget.on_right_release.as_ref() {
                 shell.publish(message.clone());
@@ -401,7 +421,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle, )) = event {
+    if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle)) =
+        event
+    {
         if is_cursor_over {
             if let Some(message) = widget.on_middle_press.as_ref() {
                 shell.publish(message.clone());
@@ -410,7 +432,9 @@ fn update<Message: Clone, Renderer>(
         }
     }
 
-    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle, )) = event {
+    if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) =
+        event
+    {
         if is_cursor_over {
             if let Some(message) = widget.on_middle_release.as_ref() {
                 shell.publish(message.clone());
