@@ -316,11 +316,11 @@ fn update<Message: Clone, Renderer>(
 
     let is_cursor_over = cursor.is_over(layout.bounds());
 
-    let mut cursor = cursor;
+    let mut _cursor = cursor;
     if let Event::Mouse(_) = event {
         if !is_cursor_over {
             state.dragging = false;
-            cursor = Cursor::Unavailable;
+            _cursor = Cursor::Unavailable;
         }
     }
 
@@ -355,7 +355,7 @@ fn update<Message: Clone, Renderer>(
             }
 
             if let Some(message) = widget.on_move.as_ref() {
-                shell.publish((message)(position.clone()));
+                shell.publish((message)(*position));
                 status = status.or(Some(event::Status::Captured));
             }
 
@@ -372,7 +372,7 @@ fn update<Message: Clone, Renderer>(
                 }
             }
 
-            state.last_cursor = Cursor::Available(position.clone());
+            state.last_cursor = Available(*position);
             state.was_over = Some(true);
         } else {
             if let Some(true) = state.was_over {
