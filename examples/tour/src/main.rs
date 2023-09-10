@@ -1,15 +1,19 @@
-use iced::advanced::mouse::Click;
-use iced::theme;
-use iced::widget::{
-    checkbox, column, container, horizontal_space, image, radio, row,
-    scrollable, slider, text, text_input, toggler, vertical_space, MouseArea,
-};
-use iced::widget::{Button, Column, Container, Slider};
 use iced::{alignment, Background, Point, Theme, Vector};
-use iced::{Color, Element, Font, Length, Renderer, Sandbox, Settings};
+use iced::theme;
+use iced::widget::{checkbox, column, container, horizontal_space, image, MouseArea, radio, row, scrollable, slider, text, text_input, toggler, vertical_space};
+use iced::widget::{Button, Column, Container, Slider};
+use iced::{Color, Element, Font, Length, Pixels, Renderer, Sandbox, Settings};
+use iced::advanced::mouse::Click;
 
 pub fn main() -> iced::Result {
-    env_logger::init();
+    #[cfg(target_arch = "wasm32")]
+    {
+        console_log::init().expect("Initialize logger");
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    tracing_subscriber::fmt::init();
 
     Tour::run(Settings::default())
 }
@@ -599,7 +603,7 @@ impl<'a> Step {
             text_input = text_input.icon(text_input::Icon {
                 font: Font::default(),
                 code_point: '🚀',
-                size: Some(28.0),
+                size: Some(Pixels(28.0)),
                 spacing: 10.0,
                 side: text_input::Side::Right,
             });

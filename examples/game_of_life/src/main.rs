@@ -18,7 +18,7 @@ use iced::{
 use std::time::{Duration, Instant};
 
 pub fn main() -> iced::Result {
-    env_logger::builder().format_timestamp(None).init();
+    tracing_subscriber::fmt::init();
 
     GameOfLife::run(Settings {
         antialiasing: true,
@@ -550,7 +550,7 @@ mod grid {
                     frame.translate(center);
                     frame.scale(self.scaling);
                     frame.translate(self.translation);
-                    frame.scale(Cell::SIZE as f32);
+                    frame.scale(Cell::SIZE);
 
                     let region = self.visible_region(frame.size());
 
@@ -576,7 +576,7 @@ mod grid {
                         frame.translate(center);
                         frame.scale(self.scaling);
                         frame.translate(self.translation);
-                        frame.scale(Cell::SIZE as f32);
+                        frame.scale(Cell::SIZE);
 
                         frame.fill_rectangle(
                             Point::new(cell.j as f32, cell.i as f32),
@@ -591,7 +591,7 @@ mod grid {
 
                 let text = Text {
                     color: Color::WHITE,
-                    size: 14.0,
+                    size: 14.0.into(),
                     position: Point::new(frame.width(), frame.height()),
                     horizontal_alignment: alignment::Horizontal::Right,
                     vertical_alignment: alignment::Vertical::Bottom,
@@ -630,7 +630,7 @@ mod grid {
                         frame.translate(center);
                         frame.scale(self.scaling);
                         frame.translate(self.translation);
-                        frame.scale(Cell::SIZE as f32);
+                        frame.scale(Cell::SIZE);
 
                         let region = self.visible_region(frame.size());
                         let rows = region.rows();
@@ -834,7 +834,7 @@ mod grid {
     }
 
     impl Cell {
-        const SIZE: usize = 20;
+        const SIZE: u16 = 20;
 
         fn at(position: Point) -> Cell {
             let i = (position.y / Cell::SIZE as f32).ceil() as isize;
