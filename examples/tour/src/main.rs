@@ -1,9 +1,12 @@
-use iced::{alignment, Background, Point, Theme, Vector};
-use iced::theme;
-use iced::widget::{checkbox, column, container, horizontal_space, image, MouseArea, radio, row, scrollable, slider, text, text_input, toggler, vertical_space};
-use iced::widget::{Button, Column, Container, Slider};
-use iced::{Color, Element, Font, Length, Pixels, Renderer, Sandbox, Settings};
 use iced::advanced::mouse::Click;
+use iced::theme;
+use iced::widget::{
+    checkbox, column, container, horizontal_space, image, radio, row,
+    scrollable, slider, text, text_input, toggler, vertical_space, MouseArea,
+};
+use iced::widget::{Button, Column, Container, Slider};
+use iced::{alignment, Background, Point, Theme, Vector};
+use iced::{Color, Element, Font, Length, Pixels, Renderer, Sandbox, Settings};
 
 pub fn main() -> iced::Result {
     #[cfg(target_arch = "wasm32")]
