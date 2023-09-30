@@ -1,11 +1,11 @@
 use iced::advanced::mouse::Click;
-use iced::theme;
 use iced::widget::{
     checkbox, column, container, horizontal_space, image, radio, row,
     scrollable, slider, text, text_input, toggler, vertical_space, MouseArea,
 };
 use iced::widget::{Button, Column, Container, Slider};
 use iced::{alignment, Background, Point, Theme, Vector};
+use iced::{theme, BorderRadius};
 use iced::{Color, Element, Font, Length, Pixels, Renderer, Sandbox, Settings};
 
 pub fn main() -> iced::Result {
@@ -679,9 +679,9 @@ impl<'a> Step {
                       container::Appearance {
                           text_color: None,
                           background: Some(Background::Color(Color::new(1.0, 0.0, 0.0, 1.0))),
-                          border_radius: Default::default(),
+                          border_radius: BorderRadius::default(),
                           border_width: 0.0,
-                          border_color: Default::default(),
+                          border_color: Color::default(),
                       }})
                     .width(100.0)
                     .height(100.0)
