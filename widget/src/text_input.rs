@@ -239,26 +239,6 @@ where
     Renderer: text::Renderer,
     Renderer::Theme: StyleSheet,
 {
-    fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
-    }
-
-    fn state(&self) -> tree::State {
-        tree::State::new(State::new())
-    }
-
-    fn diff(&self, tree: &mut Tree) {
-        let state = tree.state.downcast_mut::<State>();
-
-        // Unfocus text input if it becomes disabled
-        if self.on_input.is_none() {
-            state.last_click = None;
-            state.is_focused = None;
-            state.is_pasting = None;
-            state.is_dragging = false;
-        }
-    }
-
     fn width(&self) -> Length {
         self.width
     }
@@ -281,6 +261,54 @@ where
             self.line_height,
             self.icon.as_ref(),
         )
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        theme: &Renderer::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        draw(
+            renderer,
+            theme,
+            layout,
+            cursor,
+            tree.state.downcast_ref::<State>(),
+            &self.value,
+            &self.placeholder,
+            self.size,
+            self.line_height,
+            self.font,
+            self.on_input.is_none(),
+            self.is_secure,
+            self.icon.as_ref(),
+            &self.style,
+        )
+    }
+
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(State::new())
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        let state = tree.state.downcast_mut::<State>();
+
+        // Unfocus text input if it becomes disabled
+        if self.on_input.is_none() {
+            state.last_click = None;
+            state.is_focused = None;
+            state.is_pasting = None;
+            state.is_dragging = false;
+        }
     }
 
     fn operate(
@@ -323,34 +351,6 @@ where
             self.on_paste.as_deref(),
             &self.on_submit,
             || tree.state.downcast_mut::<State>(),
-        )
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut Renderer,
-        theme: &Renderer::Theme,
-        _style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        _viewport: &Rectangle,
-    ) {
-        draw(
-            renderer,
-            theme,
-            layout,
-            cursor,
-            tree.state.downcast_ref::<State>(),
-            &self.value,
-            &self.placeholder,
-            self.size,
-            self.line_height,
-            self.font,
-            self.on_input.is_none(),
-            self.is_secure,
-            self.icon.as_ref(),
-            &self.style,
         )
     }
 
@@ -689,29 +689,6 @@ where
                 return event::Status::Captured;
             }
         }
-        Event::Keyboard(keyboard::Event::CharacterReceived(c)) => {
-            let state = state();
-
-            if let Some(focus) = &mut state.is_focused {
-                let Some(on_input) = on_input else { return event::Status::Ignored };
-
-                if state.is_pasting.is_none()
-                    && !state.keyboard_modifiers.command()
-                    && !c.is_control()
-                {
-                    let mut editor = Editor::new(value, &mut state.cursor);
-
-                    editor.insert(c);
-
-                    let message = (on_input)(editor.contents());
-                    shell.publish(message);
-
-                    focus.updated_at = Instant::now();
-
-                    return event::Status::Captured;
-                }
-            }
-        }
         Event::Keyboard(keyboard::Event::KeyPressed { key_code, .. }) => {
             let state = state();
 
@@ -722,13 +699,12 @@ where
                 focus.updated_at = Instant::now();
 
                 match key_code {
-                    keyboard::KeyCode::Enter
-                    | keyboard::KeyCode::NumpadEnter => {
+                    keyboard::keyboard::Key::Enter => {
                         if let Some(on_submit) = on_submit.clone() {
                             shell.publish(on_submit);
                         }
                     }
-                    keyboard::KeyCode::Backspace => {
+                    keyboard::keyboard::Key::Backspace => {
                         if platform::is_jump_modifier_pressed(modifiers)
                             && state.cursor.selection(value).is_none()
                         {
@@ -746,7 +722,7 @@ where
                         let message = (on_input)(editor.contents());
                         shell.publish(message);
                     }
-                    keyboard::KeyCode::Delete => {
+                    keyboard::keyboard::Key::Delete => {
                         if platform::is_jump_modifier_pressed(modifiers)
                             && state.cursor.selection(value).is_none()
                         {
@@ -766,7 +742,7 @@ where
                         let message = (on_input)(editor.contents());
                         shell.publish(message);
                     }
-                    keyboard::KeyCode::Left => {
+                    keyboard::keyboard::Key::ArrowLeft => {
                         if platform::is_jump_modifier_pressed(modifiers)
                             && !is_secure
                         {
@@ -781,7 +757,7 @@ where
                             state.cursor.move_left(value);
                         }
                     }
-                    keyboard::KeyCode::Right => {
+                    keyboard::keyboard::Key::ArrowRight => {
                         if platform::is_jump_modifier_pressed(modifiers)
                             && !is_secure
                         {
@@ -796,7 +772,7 @@ where
                             state.cursor.move_right(value);
                         }
                     }
-                    keyboard::KeyCode::Home => {
+                    keyboard::keyboard::Key::Home => {
                         if modifiers.shift() {
                             state
                                 .cursor
@@ -805,7 +781,7 @@ where
                             state.cursor.move_to(0);
                         }
                     }
-                    keyboard::KeyCode::End => {
+                    keyboard::keyboard::Key::End => {
                         if modifiers.shift() {
                             state.cursor.select_range(
                                 state.cursor.start(value),
@@ -815,71 +791,109 @@ where
                             state.cursor.move_to(value.len());
                         }
                     }
-                    keyboard::KeyCode::C
-                        if state.keyboard_modifiers.command() =>
-                    {
-                        if let Some((start, end)) =
-                            state.cursor.selection(value)
-                        {
-                            clipboard
-                                .write(value.select(start, end).to_string());
-                        }
-                    }
-                    keyboard::KeyCode::X
-                        if state.keyboard_modifiers.command() =>
-                    {
-                        if let Some((start, end)) =
-                            state.cursor.selection(value)
-                        {
-                            clipboard
-                                .write(value.select(start, end).to_string());
+                    keyboard::keyboard::Key::Space => {
+                        if modifiers.command() {
+                            return event::Status::Ignored;
                         }
 
                         let mut editor = Editor::new(value, &mut state.cursor);
-                        editor.delete();
+                        editor.insert(' ');
 
                         let message = (on_input)(editor.contents());
                         shell.publish(message);
                     }
-                    keyboard::KeyCode::V => {
-                        if state.keyboard_modifiers.command() {
-                            let content = match state.is_pasting.take() {
-                                Some(content) => content,
-                                None => {
-                                    let content: String = clipboard
-                                        .read()
-                                        .unwrap_or_default()
-                                        .chars()
-                                        .filter(|c| !c.is_control())
-                                        .collect();
+                    keyboard::keyboard::Key::Character(str) => {
+                        if let Some(focus) = &mut state.is_focused {
 
-                                    Value::new(&content)
+                            if state.is_pasting.is_none()
+                              && !state.keyboard_modifiers.command()
+                              //&& !state.is_control()
+                            {
+                                let mut editor = Editor::new(value, &mut state.cursor);
+
+                                editor.paste(Value::new(str.as_str()));
+
+                                let message = (on_input)(editor.contents());
+                                shell.publish(message);
+
+                                focus.updated_at = Instant::now();
+
+                                return event::Status::Captured;
+                            }
+                        }
+
+                        match str.as_str() {
+                            "x" => {
+                                if state.keyboard_modifiers.command()
+                                {
+                                    if let Some((start, end)) =
+                                      state.cursor.selection(value)
+                                    {
+                                        clipboard
+                                          .write(value.select(start, end).to_string());
+                                    }
+
+                                    let mut editor = Editor::new(value, &mut state.cursor);
+                                    editor.delete();
+
+                                    let message = (on_input)(editor.contents());
+                                    shell.publish(message);
                                 }
-                            };
+                            }
+                            "c" => {
+                                if state.keyboard_modifiers.command()
+                                {
+                                    if let Some((start, end)) =
+                                      state.cursor.selection(value)
+                                    {
+                                        clipboard
+                                          .write(value.select(start, end).to_string());
+                                    }
+                                }
+                            }
+                            "v" => {
+                                if state.keyboard_modifiers.command() {
+                                    let content = match state.is_pasting.take() {
+                                        Some(content) => content,
+                                        None => {
+                                            let content: String = clipboard
+                                              .read()
+                                              .unwrap_or_default()
+                                              .chars()
+                                              .filter(|c| !c.is_control())
+                                              .collect();
 
-                            let mut editor =
-                                Editor::new(value, &mut state.cursor);
+                                            Value::new(&content)
+                                        }
+                                    };
 
-                            editor.paste(content.clone());
+                                    let mut editor =
+                                      Editor::new(value, &mut state.cursor);
 
-                            let message = if let Some(paste) = &on_paste {
-                                (paste)(editor.contents())
-                            } else {
-                                (on_input)(editor.contents())
-                            };
-                            shell.publish(message);
+                                    editor.paste(content.clone());
 
-                            state.is_pasting = Some(content);
-                        } else {
-                            state.is_pasting = None;
+                                    let message = if let Some(paste) = &on_paste {
+                                        (paste)(editor.contents())
+                                    } else {
+                                        (on_input)(editor.contents())
+                                    };
+                                    shell.publish(message);
+
+                                    state.is_pasting = Some(content);
+                                } else {
+                                    state.is_pasting = None;
+                                }
+                            }
+                            "a" => {
+                                if state.keyboard_modifiers.command()
+                                {
+                                    state.cursor.select_all(value);
+                                }
+                            }
+                            _ => {}
                         }
                     }
-                    keyboard::KeyCode::A
-                        if state.keyboard_modifiers.command() =>
-                    {
-                        state.cursor.select_all(value);
-                    }
-                    keyboard::KeyCode::Escape => {
+                    keyboard::keyboard::Key::Escape => {
                         state.is_focused = None;
                         state.is_dragging = false;
                         state.is_pasting = None;
@@ -887,9 +901,9 @@ where
                         state.keyboard_modifiers =
                             keyboard::Modifiers::default();
                     }
-                    keyboard::KeyCode::Tab
-                    | keyboard::KeyCode::Up
-                    | keyboard::KeyCode::Down => {
+                    keyboard::keyboard::Key::Tab
+                    | keyboard::keyboard::Key::ArrowUp
+                    | keyboard::keyboard::Key::ArrowDown => {
                         return event::Status::Ignored;
                     }
                     _ => {}
@@ -903,12 +917,17 @@ where
 
             if state.is_focused.is_some() {
                 match key_code {
-                    keyboard::KeyCode::V => {
-                        state.is_pasting = None;
+                    keyboard::keyboard::Key::Character(char) => {
+                        match char.as_str() {
+                            "v" => {
+                                state.is_pasting = None;
+                            }
+                            _ => {}
+                        }
                     }
-                    keyboard::KeyCode::Tab
-                    | keyboard::KeyCode::Up
-                    | keyboard::KeyCode::Down => {
+                    keyboard::keyboard::Key::Tab
+                    | keyboard::keyboard::Key::ArrowUp
+                    | keyboard::keyboard::Key::ArrowDown => {
                         return event::Status::Ignored;
                     }
                     _ => {}

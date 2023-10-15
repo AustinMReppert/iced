@@ -128,7 +128,11 @@ where
     #[cfg(feature = "trace")]
     let _ = info_span!("Application", "RUN").entered();
 
-    let event_loop = EventLoopBuilder::with_user_event().build();
+    // TODO: FIX THIS
+    let event_loop = EventLoopBuilder::with_user_event()
+        .build()
+        .expect("Event loop creation failed");
+    //let event_loop = EventLoopBuilder::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
     let runtime = {
@@ -155,7 +159,7 @@ where
             event_loop.primary_monitor(),
             settings.id,
         )
-        .with_visible(false);
+        .with_visible(true);
 
     log::debug!("Window builder: {:#?}", builder);
 
@@ -230,37 +234,20 @@ where
             return;
         }
 
-        let event = match event {
-            winit::event::Event::WindowEvent {
-                event:
-                    winit::event::WindowEvent::ScaleFactorChanged {
-                        new_inner_size,
-                        ..
-                    },
-                window_id,
-            } => Some(winit::event::Event::WindowEvent {
-                event: winit::event::WindowEvent::Resized(*new_inner_size),
-                window_id,
-            }),
-            _ => event.to_static(),
+        event_sender.start_send(event).expect("Send event");
+
+        let poll = instance.as_mut().poll(&mut context);
+
+        match poll {
+            task::Poll::Pending => {
+                if let Ok(Some(flow)) = control_receiver.try_next() {
+                    *control_flow = flow;
+                }
+            }
+            task::Poll::Ready(_) => {
+                *control_flow = ControlFlow::Exit;
+            }
         };
-
-        if let Some(event) = event {
-            event_sender.start_send(event).expect("Send event");
-
-            let poll = instance.as_mut().poll(&mut context);
-
-            match poll {
-                task::Poll::Pending => {
-                    if let Ok(Some(flow)) = control_receiver.try_next() {
-                        *control_flow = flow;
-                    }
-                }
-                task::Poll::Ready(_) => {
-                    *control_flow = ControlFlow::Exit;
-                }
-            };
-        }
     })
 }
 
@@ -272,7 +259,7 @@ async fn run_instance<A, E, C>(
     mut proxy: winit::event_loop::EventLoopProxy<A::Message>,
     mut debug: Debug,
     mut event_receiver: mpsc::UnboundedReceiver<
-        winit::event::Event<'_, A::Message>,
+        winit::event::Event<A::Message>,
     >,
     mut control_sender: mpsc::UnboundedSender<winit::event_loop::ControlFlow>,
     init_command: Command<A::Message>,
@@ -337,7 +324,6 @@ async fn run_instance<A, E, C>(
     let mut redraw_pending = false;
 
     debug.startup_finished();
-
     while let Some(event) = event_receiver.next().await {
         match event {
             event::Event::NewEvents(start_cause) => {
@@ -348,7 +334,7 @@ async fn run_instance<A, E, C>(
                         | event::StartCause::ResumeTimeReached { .. }
                 );
             }
-            event::Event::MainEventsCleared => {
+            event::Event::AboutToWait => {
                 if !redraw_pending && events.is_empty() && messages.is_empty() {
                     continue;
                 }
@@ -466,7 +452,7 @@ async fn run_instance<A, E, C>(
 
                 redraw_pending = false;
             }
-            event::Event::PlatformSpecific(event::PlatformSpecific::MacOS(
+            /*event::Event::PlatformSpecific(event::PlatformSpecific::MacOS(
                 event::MacOS::ReceivedUrl(url),
             )) => {
                 use crate::core::event;
@@ -476,7 +462,7 @@ async fn run_instance<A, E, C>(
                         url,
                     )),
                 ));
-            }
+            }*/
             event::Event::UserEvent(message) => {
                 messages.push(message);
             }
@@ -589,8 +575,8 @@ async fn run_instance<A, E, C>(
 /// Returns true if the provided event should cause an [`Application`] to
 /// exit.
 pub fn requests_exit(
-    event: &winit::event::WindowEvent<'_>,
-    _modifiers: winit::event::ModifiersState,
+    event: &winit::event::WindowEvent,
+    _modifiers: winit::keyboard::ModifiersState,
 ) -> bool {
     use winit::event::WindowEvent;
 
@@ -749,10 +735,12 @@ pub fn run_command<A, C, E>(
                     let _res = window.drag_window();
                 }
                 window::Action::Resize(size) => {
-                    window.set_inner_size(winit::dpi::LogicalSize {
-                        width: size.width,
-                        height: size.height,
-                    });
+                    let _ = window
+                        .request_inner_size(winit::dpi::LogicalSize {
+                            width: size.width,
+                            height: size.height,
+                        })
+                        .expect("failed to resize window");
                 }
                 window::Action::FetchSize(callback) => {
                     let size = window.inner_size();
@@ -903,21 +891,21 @@ pub fn run_command<A, C, E>(
 
 #[cfg(not(target_arch = "wasm32"))]
 mod platform {
+    use winit::platform::pump_events::EventLoopExtPumpEvents;
+
     pub fn run<T, F>(
-        mut event_loop: winit::event_loop::EventLoop<T>,
+        event_loop: winit::event_loop::EventLoop<T>,
         event_handler: F,
     ) -> Result<(), super::Error>
     where
         F: 'static
             + FnMut(
-                winit::event::Event<'_, T>,
+                winit::event::Event<T>,
                 &winit::event_loop::EventLoopWindowTarget<T>,
                 &mut winit::event_loop::ControlFlow,
             ),
     {
-        use winit::platform::run_return::EventLoopExtRunReturn;
-
-        let _ = event_loop.run_return(event_handler);
+        let _ = event_loop.run(event_handler);
 
         Ok(())
     }

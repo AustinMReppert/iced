@@ -60,5 +60,6 @@ pub use error::Error;
 pub use position::Position;
 pub use proxy::Proxy;
 pub use settings::Settings;
+pub use winit::keyboard;
 
 pub use iced_graphics::Viewport;

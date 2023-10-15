@@ -12,4 +12,10 @@ pub enum Button {
 
     /// Some other button.
     Other(u16),
+
+    /// The back mouse button.
+    Back,
+
+    /// The forward mouse button.
+    Forward
 }

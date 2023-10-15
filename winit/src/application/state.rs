@@ -22,7 +22,7 @@ where
     viewport: Viewport,
     viewport_version: usize,
     cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
-    modifiers: winit::event::ModifiersState,
+    modifiers: winit::keyboard::ModifiersState,
     theme: <A::Renderer as core::Renderer>::Theme,
     appearance: application::Appearance,
     application: PhantomData<A>,
@@ -54,7 +54,7 @@ where
             viewport,
             viewport_version: 0,
             cursor_position: None,
-            modifiers: winit::event::ModifiersState::default(),
+            modifiers: winit::keyboard::ModifiersState::default(),
             theme,
             appearance,
             application: PhantomData,
@@ -102,7 +102,7 @@ where
     }
 
     /// Returns the current keyboard modifiers of the [`State`].
-    pub fn modifiers(&self) -> winit::event::ModifiersState {
+    pub fn modifiers(&self) -> winit::keyboard::ModifiersState {
         self.modifiers
     }
 
@@ -126,7 +126,7 @@ where
     pub fn update(
         &mut self,
         window: &Window,
-        event: &WindowEvent<'_>,
+        event: &WindowEvent,
         _debug: &mut Debug,
     ) {
         match event {
@@ -142,17 +142,17 @@ where
             }
             WindowEvent::ScaleFactorChanged {
                 scale_factor: new_scale_factor,
-                new_inner_size,
+                inner_size_writer,
             } => {
-                let size =
-                    Size::new(new_inner_size.width, new_inner_size.height);
+                /*let size =
+                  Size::new(new_inner_size.width, new_inner_size.height);
 
                 self.viewport = Viewport::with_physical_size(
                     size,
                     new_scale_factor * self.scale_factor,
                 );
 
-                self.viewport_version = self.viewport_version.wrapping_add(1);
+                self.viewport_version = self.viewport_version.wrapping_add(1);*/
             }
             WindowEvent::CursorMoved { position, .. }
             | WindowEvent::Touch(Touch {
@@ -164,13 +164,13 @@ where
                 self.cursor_position = None;
             }
             WindowEvent::ModifiersChanged(new_modifiers) => {
-                self.modifiers = *new_modifiers;
+                self.modifiers = new_modifiers.state();
             }
             #[cfg(feature = "debug")]
             WindowEvent::KeyboardInput {
-                input:
-                    winit::event::KeyboardInput {
-                        virtual_keycode: Some(winit::event::VirtualKeyCode::F12),
+                event:
+                    winit::event::KeyEvent {
+                        logical_key: winit::keyboard::Key::F12,
                         state: winit::event::ElementState::Pressed,
                         ..
                     },

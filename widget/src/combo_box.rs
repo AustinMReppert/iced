@@ -372,6 +372,28 @@ where
         self.text_input.layout(renderer, limits)
     }
 
+    fn draw(
+        &self,
+        _tree: &widget::Tree,
+        renderer: &mut Renderer,
+        theme: &Renderer::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let selection = if self.state.is_focused() || self.selection.is_empty()
+        {
+            None
+        } else {
+            Some(&self.selection)
+        };
+
+        let tree = self.state.text_input_tree();
+        self.text_input
+            .draw(&tree, renderer, theme, layout, cursor, selection);
+    }
+
     fn tag(&self) -> widget::tree::Tag {
         widget::tree::Tag::of::<Menu<T>>()
     }
@@ -474,7 +496,7 @@ where
                 {
                     let shift_modifer = modifiers.shift();
                     match (key_code, shift_modifer) {
-                        (keyboard::KeyCode::Enter, _) => {
+                        (keyboard::keyboard::Key::Enter, _) => {
                             if let Some(index) = &menu.hovered_option {
                                 if let Some(option) =
                                     state.filtered_options.options.get(*index)
@@ -486,8 +508,8 @@ where
                             event_status = event::Status::Captured;
                         }
 
-                        (keyboard::KeyCode::Up, _)
-                        | (keyboard::KeyCode::Tab, true) => {
+                        (keyboard::keyboard::Key::ArrowUp, _)
+                        | (keyboard::keyboard::Key::Tab, true) => {
                             if let Some(index) = &mut menu.hovered_option {
                                 if *index == 0 {
                                     *index = state
@@ -523,8 +545,8 @@ where
 
                             event_status = event::Status::Captured;
                         }
-                        (keyboard::KeyCode::Down, _)
-                        | (keyboard::KeyCode::Tab, false)
+                        (keyboard::keyboard::Key::ArrowDown, _)
+                        | (keyboard::keyboard::Key::Tab, false)
                             if !modifiers.shift() =>
                         {
                             if let Some(index) = &mut menu.hovered_option {
@@ -634,28 +656,6 @@ where
         let tree = self.state.text_input_tree();
         self.text_input
             .mouse_interaction(&tree, layout, cursor, viewport, renderer)
-    }
-
-    fn draw(
-        &self,
-        _tree: &widget::Tree,
-        renderer: &mut Renderer,
-        theme: &Renderer::Theme,
-        _style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        _viewport: &Rectangle,
-    ) {
-        let selection = if self.state.is_focused() || self.selection.is_empty()
-        {
-            None
-        } else {
-            Some(&self.selection)
-        };
-
-        let tree = self.state.text_input_tree();
-        self.text_input
-            .draw(&tree, renderer, theme, layout, cursor, selection);
     }
 
     fn overlay<'b>(

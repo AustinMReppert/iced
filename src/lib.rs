@@ -225,7 +225,7 @@ pub mod font {
 
 pub mod keyboard {
     //! Listen and react to keyboard events.
-    pub use crate::core::keyboard::{Event, KeyCode, Modifiers};
+    pub use crate::core::keyboard::{Event, keyboard, Modifiers};
 }
 
 pub mod mouse {
