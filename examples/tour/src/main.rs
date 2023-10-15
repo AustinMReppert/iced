@@ -112,6 +112,11 @@ impl Steps {
     fn new() -> Steps {
         Steps {
             steps: vec![
+                Step::TextInput {
+                    value: String::new(),
+                    is_secure: false,
+                    is_showing_icon: false,
+                },
                 Step::Welcome,
                 Step::Slider { value: 50 },
                 Step::RowsAndColumns {
