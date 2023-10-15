@@ -31,6 +31,7 @@ use std::mem::ManuallyDrop;
 pub use profiler::Profiler;
 #[cfg(feature = "trace")]
 use tracing::{info_span, instrument::Instrument};
+use winit::keyboard::SmolStr;
 
 /// An interactive, native cross-platform application.
 ///
@@ -594,18 +595,19 @@ pub fn requests_exit(
 ) -> bool {
     use winit::event::WindowEvent;
 
+    let q = winit::keyboard::Key::Character(SmolStr::from("q"));
     match event {
         WindowEvent::CloseRequested => true,
         #[cfg(target_os = "macos")]
         WindowEvent::KeyboardInput {
-            input:
-                winit::event::KeyboardInput {
-                    virtual_keycode: Some(winit::event::VirtualKeyCode::Q),
+            event:
+                winit::event::KeyEvent {
+                    logical_key: winit::keyboard::Key::Character(c),
                     state: winit::event::ElementState::Pressed,
                     ..
                 },
             ..
-        } if _modifiers.logo() => true,
+        } if c.as_str() == "q" && _modifiers.super_key() => true,
         _ => false,
     }
 }
