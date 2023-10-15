@@ -129,8 +129,19 @@ where
     #[cfg(feature = "trace")]
     let _ = info_span!("Application", "RUN").entered();
 
-    let event_loop = EventLoopBuilder::with_user_event().build().expect("Failed to create event loop.");
+    #[cfg(target_os = "windows")]
+    use winit::platform::windows::EventLoopBuilderExtWindows;
+
+    #[cfg(target_os = "windows")]
+    let event_loop =  EventLoopBuilder::with_user_event().with_any_thread(true).build().expect("Failed to create event loop.");
+
+    #[cfg(not(target_os = "windows"))]
+    let event_loop = builder.build().expect("Failed to create event loop.");
+
     let proxy = event_loop.create_proxy();
+
+    //let event_loop = EventLoopBuilder::with_user_event().build().expect("Failed to create event loop.");
+    //let proxy = event_loop.create_proxy();
 
     let runtime = {
         let proxy = Proxy::new(event_loop.create_proxy());

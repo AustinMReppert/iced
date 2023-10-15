@@ -25,6 +25,8 @@ use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 #[cfg(target_arch = "wasm32")]
 use winit::platform::web::WindowBuilderExtWebSys;
+use iced_winit::winit::event_loop::EventLoopBuilder;
+use iced_winit::winit::platform::windows::EventLoopBuilderExtWindows;
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
@@ -44,6 +46,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     // Initialize winit
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    let event_loop = EventLoopBuilderExtWindows::new().with_any_thread(true).build()?;
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     let event_loop = EventLoop::new();
 
     #[cfg(target_arch = "wasm32")]
