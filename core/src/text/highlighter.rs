@@ -33,7 +33,7 @@ pub trait Highlighter: 'static {
     ///
     /// If a line changed prior to this, the first line provided here will be the
     /// line that changed.
-    fn highlight_line(&mut self, line: &str) -> Self::Iterator<'_>;
+    fn highlight_line(&mut self, line: &str, line_number: usize) -> Self::Iterator<'_>;
 
     /// Returns the current line of the [`Highlighter`].
     ///
@@ -60,7 +60,7 @@ impl Highlighter for PlainText {
 
     fn change_line(&mut self, _line: usize) {}
 
-    fn highlight_line(&mut self, _line: &str) -> Self::Iterator<'_> {
+    fn highlight_line(&mut self, _line: &str, _line_number: usize) -> Self::Iterator<'_> {
         std::iter::empty()
     }
 

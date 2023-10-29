@@ -85,7 +85,7 @@ impl highlighter::Highlighter for Highlighter {
         self.caches.push((parser, stack));
     }
 
-    fn highlight_line(&mut self, line: &str) -> Self::Iterator<'_> {
+    fn highlight_line(&mut self, line: &str, _line_number: usize) -> Self::Iterator<'_> {
         if self.current_line / LINES_PER_SNAPSHOT >= self.caches.len() {
             let (parser, stack) =
                 self.caches.last().expect("Caches must not be empty");

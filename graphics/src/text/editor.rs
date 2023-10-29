@@ -599,12 +599,12 @@ impl editor::Editor for Editor {
 
         let attributes = text::to_attributes(font);
 
-        for line in &mut internal.editor.buffer_mut().lines
-            [current_line..=last_visible_line]
+        for (line_number, line) in internal.editor.buffer_mut().lines
+            [current_line..=last_visible_line].iter_mut().enumerate()
         {
             let mut list = cosmic_text::AttrsList::new(attributes);
 
-            for (range, highlight) in highlighter.highlight_line(line.text()) {
+            for (range, highlight) in highlighter.highlight_line(line.text(), line_number) {
                 let format = format_highlight(&highlight);
 
                 if format.color.is_some() || format.font.is_some() {
