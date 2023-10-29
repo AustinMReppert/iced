@@ -604,7 +604,7 @@ impl editor::Editor for Editor {
         {
             let mut list = cosmic_text::AttrsList::new(attributes);
 
-            for (range, highlight) in highlighter.highlight_line(line.text(), line_number) {
+            for (range, highlight) in highlighter.highlight_line(line.text(), current_line + line_number) {
                 let format = format_highlight(&highlight);
 
                 if format.color.is_some() || format.font.is_some() {
